@@ -24,7 +24,7 @@ This video is an introduction to the Kubernetes health, readiness and liveness l
 
 Kubernetes provides a service that monitors the pods to see if they meet the requirements in terms of running, being responsive, and being able to process requests. 
 
-A core feature of Kubernetes is the assumption that eventually for some reason or another something will happen that means a service cannot be provided, and the designers of Kubernetes made this a core understanding of how it operates. Kubernetes doesn't just set things up they way you request, but it also continuously monitors the state of the entire deployments so that if the system does not meet what was specified Kubernetes steps in and automatically tries to adjust things so it does !
+A core feature of Kubernetes is the assumption that eventually for some reason or another something will happen that means a service cannot be provided, and the designers of Kubernetes made this a core understanding of how it operates. Kubernetes doesn't just set things up they way you request, but it also continuously monitors the state of the deployments, detecting if the system does not meet what was specified, in which case Kubernetes steps in and automatically tries to adjust things so it does !
 
 These labs look at how that is achieved.
 
@@ -214,7 +214,7 @@ The first thing to say is that whatever steps your actual liveness test does it 
 
 Let's look at some of these values.
 
-As it may take a while to start up the container, we specify and initialDelaySeconds of 120, Kubernetes won't start checking if the pod is live until that period is elapsed. If we made that to short then we may never start the container as Kubernetes would always determine it was not alive before the container had a chance to start up properly. 
+As it may take a while to start up the pod, we specify and initialDelaySeconds of 120, Kubernetes won't start checking if the pod is live until that period is elapsed. If we made that to short then we may never start the pod as Kubernetes may always determine it was not alive before the pod had a chance to start up properly, in that case the pod would be stopped and a new one started (which may then suffer the same problem.) 
 
 The parameter **timeoutSeconds** specifies that for the http request to be considered failed it would not have responded in 5 seconds. As many http service implementations are initialized on first access we need to chose a value that is long enough for the framework to do it's lazy initialization.
 
@@ -485,6 +485,19 @@ The ReadinessProbe section should now look like this :
           # Need at least only one fail for this to be a problem
           failureThreshold: 1
 ```
+
+<details><summary><b>Why a shorter initialDelaySeconds ?</b></summary>
+<p>
+
+The liveness probe needs to have quite a long initialDelaySeconds because the pod needs to have started up, and we have to allow for a worst case situation. If the liveness probe has to low a value for initialDelaySeconds the pod may never start up because it may never successfully complete it's startup before Kubernetes liveness probes kick in and decide it's failed.
+
+The readiness probe does not determine if the pod is to be restarted, it only determines if the pod is able to respond to requests, once a pod passes the readiness probe then Kubernetes (via the Service definition) will start passing requests to it.
+
+This there is no harm (apart from a small amount of CPU) in starting the readiness probe earlier, hence why the initialDelaySeconds for the readiness probe is a shorter interval.
+
+---
+
+</p></details>
 
 The various options for readiness are similar to those for Liveliness, except you see here we've got an exec instead of httpGet.
 
@@ -827,11 +840,82 @@ Connection: keep-alive
 ```
 
 ### Startup probes
-You may have noticed above that we had to wait for the readiness probe to complete on a pod before it became ready, and worse we had to wait the intialDelaySeconds before we could sensibly even start testing to see if the pod was ready. This means that if we wanted to add extra pods then there is a delay before the new capacity come online and support the service, In the case of the storefront this is not to much of a problem as the service starts up fast, but for a more complex service, especially a legacy service that may have a startup time that varies a lot depending on other factors, this could be a problem, after all we want to respond to request as soon as we can.
+You may have noticed above that we had to wait for the readiness probe to complete on a pod before it became ready, and worse we had to wait the intialDelaySeconds before we could sensibly even start testing to see if the pod was ready. This means that if we wanted to add extra pods then there is a delay before the new capacity come online and support the service, In the case of the storefront this is not to much of a problem as the service starts up fast, but for a more complex service, especially a legacy service that may have a startup time that varies a lot depending on other factors, this could be a problem, after all we want to respond to requests as soon as we can, but we want to give the pods enough time to start.
 
-To solve this in Kubernetes 1.16 the concept of startup probes was introduced. A startup probe is a very simple probe that tests to see if the service has started running, usually at a basic level, and then starts up the liveness and readiness probes. Effectively the startupProbe means there is no longer any need for the initialDelaySeconds.
+To solve this in Kubernetes 1.18 the concept of startup probes was introduced as a beta feature (it was actually introduced as an alpha feature in 1.16, but was at that point disabled by default.) A startup probe is a very simple probe that tests to see if the pod has started running, usually at a basic level, and then starts up the liveness and readiness probes. If the pod fails to respond to the startup probe within a period of time (basically number of failures * time between attempts) then it' deemed to have failed and will be re-started.
 
-Unfortunately however the startup probes are not supported in versions of Kubernetes prior to 1.16, and this lab is not yet fully updated for that. But there is example configuration in the storefront-deployment.yaml file to show how this would would be defined (the initialDeploymentSeconds would need to be removed from the liveness and readiness configurations.
+Effectively the startupProbe means there is no longer any need for the initialDelaySeconds for the liveness and readiness probes, and 
+
+We need to make some modifications to the storefront-deployment.yaml file to use this.
+
+- Make sure you are in the folder **$HOME/helidon-kubernetes**
+- Edit the file **storefront-deployment.yaml**
+
+First we need to comment the `initialDelaySeconds` for the liveness and readiness probes.
+
+- Locate the `liveness` section and then the `initialDelaySeconds`, put a `#` at the begining of that line. The liveness section should now look like :
+
+```
+        livenessProbe:
+          #Simple check to see if the liveness call works
+          # If must return a 200 - 399 http status code
+          httpGet:
+             path: /health/live
+             port: health-port
+          # Give it a few seconds to make sure it's had a chance to start up
+#          initialDelaySeconds: 120
+          # Let it have a 5 second timeout to wait for a response
+          timeoutSeconds: 5
+          # Check every 5 seconds (default is 1)
+          periodSeconds: 5
+          # Need to have 3 failures before we decide the pod is dead, not just slow
+          failureThreshold: 3
+```
+
+- Locate the `readiness` section and then the `initialDelaySeconds` line, place a `#` at the begining of that line. The readiness section should now look like :
+
+```
+       # This checks if the pod is ready to process requests
+        readinessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - 'curl -s http://localhost:9080/health/ready | grep "\"outcome\":\"UP\""'
+          # No point in checking until it's been running for a while 
+#          initialDelaySeconds: 15
+          # Allow a short delay for the response
+          timeoutSeconds: 5
+          # Check every 10 seconds
+          periodSeconds: 10
+          # Need at least only one fail for this to be a problem
+          failureThreshold: 1
+```
+
+- Locate the `startupProbe` section, uncomment all of the `#` at the start of the line only, do not remove any spaces or other `#` the word `startupProbe` should line up with the start of `# note that this was released as beta in k8s V 1.18`
+
+```        
+         # Use this to check if the pod is started this has to pass before the liveness kicks in
+         # note that this was released as beta in k8s V 1.18
+         startupProbe:
+          #Simple check to see if the status call works
+          # If must return a 200 - 399 http status code
+           httpGet:
+              path: /status
+              port: service-port
+          # No initial delay - it starts checking immediately
+          # Let it have a 5 second timeout
+           timeoutSeconds: 5
+          # allow for up to 48 failures
+           failureThreshold: 48
+          # Check every 5 seconds
+           periodSeconds: 5
+          # If after failureThreshold * periodSeconds it's not up and running then it's determined to have failed (4 mins in this case)
+```
+
+Note the setting here, it uses the same approach as for the liveness probe (checking if it gets an OK response from the status port) this is because once it passes we want it to be able to then continue with the liveness checks. As a startupProbe it will start checking immediately (so no `initialDelaySeconds`) and it will try for 48 times (the `failureThreshold`) checking every 5 seconds (the `periodSeconds`.) This means that it will try for up to 4 mins, but if it succeeds in getting a response then the liveness and readiness probes will kick in and start monitoring from the point at which the startupProbe first succeeds in getting a valid response.
+
+show how this would would be defined (the initialDeploymentSeconds would need to be removed from the liveness and readiness configurations.
 
 
 
