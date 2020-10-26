@@ -12,7 +12,7 @@ During this day you will be able to experience the various cloud services hands-
 
 
 ## Application Development ##
-- [Getting started with Kubernetes Clusters on OCI](AppDev/Simple-OKE/README.md)
+- [Getting started with Kubernetes Clusters on OCI](https://www.oracle.com/webfolder/technetwork/tutorials/obe/oci/oke-full/index.html)
   A simple lab spinning up a Kubernetes container and deploying a hello-world application 
 - [Microservices using Autonomous ATP and Managed Containers](https://oracle.github.io/cloudtestdrive/AppDev/ATP-OKE/livelabs-trial/)
   This lab will cover the complete setup of Developer Cloud, a Kubernetes Cluster and an Autonomous Database, and then build the CI/CD flow to deploy a Node-based microservice onto this infrastructure, starting from a fresh Cloud Free Trial.  If you are joining an instructor-led Cloud Test Drive lab, your instructor might ask you to follow [this](https://oracle.github.io/cloudtestdrive/AppDev/ATP-OKE/livelabs-ctdenv) alternative version of the lab.
@@ -34,10 +34,10 @@ During this day you will be able to experience the various cloud services hands-
 + [Running WebLogic on Docker](AppDev/wls/WLS_on_Docker.md)
   Spin up the official Oracle Docker Image for Weblogic and deploy a simple demo application on the server.
 
-+ [Running WebLogic on Kubernetes](https://oracle.github.io/cloudtestdrive/AppDev/wls/?lab=weblogic-on-kubernetes)
++ [Running WebLogic on Kubernetes](https://oracle.github.io/cloudtestdrive/AppDev/wls/ll-oke/)
   Launch WebLogic on a Kubernetes cluster, using the WebLogic Operator to control your WebLogic environment
   
-+ [Migrating Java EE "Monolith" application libraries to Microservices using Helidon](AppDev/helidon-k8s/README.md)
++ [Migrating Java EE "Monolith" application libraries to Cloud Native development using Microservices and Helidon](AppDev/cloud-native/README.md)
 
   
 
