@@ -108,7 +108,9 @@ Once the the WebLogic images are into your server continue then the lab :
 ```
 cd
 rm -rf  WLS_deploy_scripts
-git clone https://github.com/eugsim1/WLS_deploy_scripts.git
+wget https://github.com/oracle/cloudtestdrive/raw/master/AppDev/wls/ll-wls-migration/WLS_deploy_scripts/WLS_deploy_scripts.zip
+unzip WLS_deploy_scripts.zip
+
 ###
 ### always restart docker daemon to avoid build failures 
 ###
